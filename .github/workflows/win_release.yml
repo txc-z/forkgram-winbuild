@@ -35,9 +35,6 @@ on:
   push:
     tags:
       - 'v*'
-  schedule:
-    # Keep the library and Qt caches from the 7-day eviction; rebuilds only what changed.
-    - cron: '0 3 * * 1,4'
 
 permissions:
   contents: write

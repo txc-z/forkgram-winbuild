@@ -1,0 +1,120 @@
+name: Auto sync & build.
+
+# Daily: check forkgram/tdesktop for a new release. If its tag is not yet
+# merged into this branch, merge it (a conflict stops the workflow and
+# opens an issue), push, and dispatch the Windows Release build.
+
+on:
+  schedule:
+    # Daily, ~03:17 UTC.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream release tag to merge (empty = latest release).'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+concurrency:
+  group: auto-sync-build
+  cancel-in-progress: false
+
+jobs:
+  sync-and-build:
+    name: Sync upstream release and build
+    runs-on: ubuntu-latest
+    env:
+      BUILD_BRANCH: build/v7.3.1-search-in-topic
+      UPSTREAM_REPO: forkgram/tdesktop
+    steps:
+      - name: Checkout build branch.
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BUILD_BRANCH }}
+          fetch-depth: 0
+          token: ${{ secrets.FORKGRAM_SYNC_TOKEN }}
+
+      - name: Determine target tag.
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            TAG=$(curl -fsSL "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" | jq -r '.tag_name')
+          fi
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::could not determine upstream release tag"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Upstream latest release: $TAG"
+
+      - name: Fetch upstream tag.
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || true
+          git fetch upstream "refs/tags/${{ steps.tag.outputs.tag }}:refs/tags/${{ steps.tag.outputs.tag }}"
+
+      - name: Check whether already synced.
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git merge-base --is-ancestor "${{ steps.tag.outputs.tag }}^{commit}" HEAD; then
+            echo "synced=true" >> "$GITHUB_OUTPUT"
+            echo "${{ steps.tag.outputs.tag }} is already merged into ${BUILD_BRANCH}; nothing to do."
+          else
+            echo "synced=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream tag (stop on conflict).
+        id: merge
+        if: steps.check.outputs.synced != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git merge --no-edit "${{ steps.tag.outputs.tag }}"; then
+            git merge --abort || true
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            echo "::error::merge of ${{ steps.tag.outputs.tag }} conflicts; stopping for manual resolution"
+            exit 1
+          fi
+          git push origin "HEAD:${BUILD_BRANCH}"
+          echo "merged=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open an issue on merge conflict.
+        if: failure() && steps.merge.outputs.conflict == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.FORKGRAM_SYNC_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Auto-sync stopped: merging upstream ${{ steps.tag.outputs.tag }} conflicts" \
+            --body "The daily auto-sync could not merge upstream release **${{ steps.tag.outputs.tag }}** into \`${BUILD_BRANCH}\` without conflicts, so the workflow stopped before pushing anything. Manual merge resolution is required, then re-run this workflow. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Dispatch Windows Release build.
+        if: steps.merge.outputs.merged == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.FORKGRAM_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run win_release.yml \
+            --ref "${BUILD_BRANCH}" \
+            -f arch=x64 \
+            -f only_cache=false \
+            -f lto=false \
+            -f publish_release=false \
+            -f telegram=off \
+            -f signing=none
+          echo "Dispatched win_release.yml on ${BUILD_BRANCH} for ${{ steps.tag.outputs.tag }}."

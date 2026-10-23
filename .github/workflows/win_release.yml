@@ -703,7 +703,7 @@ jobs:
             TARGET=()
           else
             TAG="v$AppVersionStr"
-            TARGET=(--target dev)
+            TARGET=(--target "$GITHUB_REF_NAME")
           fi
 
           # Create only if missing, else just add assets, so the arch legs and the mac workflow share one release.

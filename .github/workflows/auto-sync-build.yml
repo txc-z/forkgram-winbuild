@@ -2,7 +2,8 @@ name: Auto sync & build.
 
 # Daily: check forkgram/tdesktop for a new release. If its tag is not yet
 # merged into this branch, merge it (a conflict stops the workflow and
-# opens an issue), push, and dispatch the Windows Release build.
+# opens an issue), push, and dispatch the Windows Release build, which
+# also publishes a GitHub Release with the built binaries.
 
 on:
   schedule:
@@ -114,7 +115,7 @@ jobs:
             -f arch=x64 \
             -f only_cache=false \
             -f lto=false \
-            -f publish_release=false \
+            -f publish_release=true \
             -f telegram=off \
             -f signing=none
-          echo "Dispatched win_release.yml on ${BUILD_BRANCH} for ${{ steps.tag.outputs.tag }}."
+          echo "Dispatched win_release.yml on ${BUILD_BRANCH} for ${{ steps.tag.outputs.tag }} (publishes a GitHub Release)."

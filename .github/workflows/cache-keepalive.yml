@@ -5,6 +5,11 @@ name: Cache keep-alive.
 # leave every release build cold. This workflow only restores the four
 # Windows x64 caches that win_release.yml saves (touching them resets
 # the 7-day eviction clock); it never builds anything.
+#
+# The paths below must stay literally identical to win_release.yml's:
+# actions/cache mixes the resolved paths into the cache version, so a
+# different spelling of the same directory (D:\TBuild instead of
+# %GITHUB_WORKSPACE%\TBuild) silently misses every cache.
 
 on:
   schedule:
@@ -21,10 +26,22 @@ jobs:
     name: Restore Windows x64 caches
     runs-on: windows-latest
     timeout-minutes: 60
-    env:
-      TBUILD: 'D:\TBuild'
-      LibrariesPath: 'D:\TBuild\Libraries\win64'
     steps:
+      # Same directory preparation as win_release.yml, so TBUILD and
+      # LibrariesPath expand to the exact strings the build used.
+      - name: Prepare directories.
+        shell: cmd
+        run: |
+          if exist D:\ (
+            mkdir D:\TBuild\Libraries
+            mklink /d %GITHUB_WORKSPACE%\TBuild D:\TBuild
+          ) else (
+            mkdir %userprofile%\TBuild\Libraries
+            mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          )
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries\win64>>%GITHUB_ENV%
+
       # The primary keys below never match on purpose; the restore-keys
       # prefix pulls the newest cache of each kind, same as the real
       # build's fallback does.

@@ -99,7 +99,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.FORKGRAM_SYNC_TOKEN }}
         run: |
-          gh issue create \
+          gh issue create --repo "$GITHUB_REPOSITORY" \
             --title "Auto-sync stopped: merging upstream ${{ steps.tag.outputs.tag }} conflicts" \
             --body "The daily auto-sync could not merge upstream release **${{ steps.tag.outputs.tag }}** into \`${BUILD_BRANCH}\` without conflicts, so the workflow stopped before pushing anything. Manual merge resolution is required, then re-run this workflow. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
@@ -110,7 +110,7 @@ jobs:
           GH_TOKEN: ${{ secrets.FORKGRAM_SYNC_TOKEN }}
         run: |
           set -euo pipefail
-          gh workflow run win_release.yml \
+          gh workflow run win_release.yml --repo "$GITHUB_REPOSITORY" \
             --ref "${BUILD_BRANCH}" \
             -f arch=x64 \
             -f only_cache=false \

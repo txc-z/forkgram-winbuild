@@ -1,0 +1,64 @@
+name: Cache keep-alive.
+
+# GitHub evicts Actions caches that have not been accessed for 7 days,
+# and upstream releases often land more than a week apart, which would
+# leave every release build cold. This workflow only restores the four
+# Windows x64 caches that win_release.yml saves (touching them resets
+# the 7-day eviction clock); it never builds anything.
+
+on:
+  schedule:
+    # Monday and Thursday, ~03:23 UTC. Max gap is 4 days, safely under 7.
+    - cron: '23 3 * * 1,4'
+  workflow_dispatch:
+
+concurrency:
+  group: cache-keepalive
+  cancel-in-progress: false
+
+jobs:
+  touch-caches:
+    name: Restore Windows x64 caches
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      TBUILD: 'D:\TBuild'
+      LibrariesPath: 'D:\TBuild\Libraries\win64'
+    steps:
+      # The primary keys below never match on purpose; the restore-keys
+      # prefix pulls the newest cache of each kind, same as the real
+      # build's fallback does.
+      - name: ThirdParty cache.
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: Windows-x64-third-party-keepalive
+          restore-keys: Windows-x64-third-party-
+
+      - name: Libraries cache.
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: Windows-x64-libs-rel-keepalive
+          restore-keys: Windows-x64-libs-rel-
+
+      - name: Qt cache.
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: Windows-x64-qt-rel-keepalive
+          restore-keys: Windows-x64-qt-rel-
+
+      - name: Build tree cache.
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.TBUILD }}\tdesktop\out
+          key: Windows-x64-out-rel-keepalive
+          restore-keys: Windows-x64-out-rel-

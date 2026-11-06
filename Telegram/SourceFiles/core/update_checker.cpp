@@ -728,8 +728,8 @@ rpl::lifetime &Checker::lifetime() {
 	return _lifetime;
 }
 
-// HttpChecker::HttpChecker(bool testing) : Checker(testing) {
-// }
+HttpChecker::HttpChecker(bool testing) : Checker(testing) {
+}
 
 void HttpChecker::start() {
 	const auto updaterVersion = Platform::AutoUpdateVersion();
@@ -741,6 +741,11 @@ void HttpChecker::start() {
 	auto request = QNetworkRequest(url);
 	// Qt's HTTP/2 backend does not apply the read-buffer limit.
 	request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
+	// The update prefix points at GitHub Releases, which answers with a
+	// redirect to the file host; follow HTTPS-to-HTTPS redirects.
+	request.setAttribute(
+		QNetworkRequest::RedirectPolicyAttribute,
+		QNetworkRequest::NoLessSafeRedirectPolicy);
 	_manager = std::make_unique<QNetworkAccessManager>();
 	_reply = _manager->get(request);
 	_reply->setReadBufferSize(kMaxResponseSize);
@@ -952,6 +957,10 @@ void HttpLoaderActor::sendRequest() {
 	request.setAttribute(
 		QNetworkRequest::HttpPipeliningAllowedAttribute,
 		true);
+	// GitHub Releases downloads start with a redirect to the file host.
+	request.setAttribute(
+		QNetworkRequest::RedirectPolicyAttribute,
+		QNetworkRequest::NoLessSafeRedirectPolicy);
 	_reply.reset(_manager.get(request));
 	connect(
 		_reply.get(),
@@ -1756,14 +1765,17 @@ void Updater::start(bool forceWait) {
 		}
 #endif // !Q_OS_WIN && !Q_OS_MAC
 	} else if (sendRequest) {
-		//startImplementation(
-		//	&_httpImplementation,
-		//	std::make_unique<HttpChecker>(_testing));
+		// This build checks for updates over HTTPS against its own
+		// GitHub Releases (see Local::readAutoupdatePrefix); the
+		// forkgram Telegram feed below is not used.
 		startImplementation(
-			&_mtpImplementation,
-			std::make_unique<MtpChecker>(
-				LookupCanaryPrivateSession(_session),
-				_testing));
+			&_httpImplementation,
+			std::make_unique<HttpChecker>(_testing));
+		//startImplementation(
+		//	&_mtpImplementation,
+		//	std::make_unique<MtpChecker>(
+		//		LookupCanaryPrivateSession(_session),
+		//		_testing));
 
 		_checking.fire({});
 	} else {

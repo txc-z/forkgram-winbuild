@@ -117,5 +117,5 @@ jobs:
             -f lto=false \
             -f publish_release=true \
             -f telegram=off \
-            -f signing=none
+            -f signing=full
           echo "Dispatched win_release.yml on ${BUILD_BRANCH} for ${{ steps.tag.outputs.tag }} (publishes a GitHub Release)."

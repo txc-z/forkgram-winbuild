@@ -558,7 +558,7 @@ const QString &readAutoupdatePrefixRaw() {
 			return AutoupdatePrefix(value);
 		}
 	}
-	return AutoupdatePrefix("https://dummy_link.dummy_link");
+	return AutoupdatePrefix("https://github.com/txc-z/forkgram-winbuild/releases/latest/download");
 }
 
 void writeAutoupdatePrefix(const QString &prefix) {

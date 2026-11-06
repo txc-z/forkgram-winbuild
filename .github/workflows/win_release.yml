@@ -284,7 +284,7 @@ jobs:
                 literal('AlphaPrivateKey', os.environ['ALPHA_KEY'], static=True))
 
             # The v2 release key, passed to Packer as a file path, not compiled in.
-            (private / 'forkgram-release-2026a.pem').write_text(
+            (private / 'txcz-release-2026a.pem').write_text(
                 os.environ['UPDATE_LOCAL_KEY'].strip() + '\n')
           PY
 
@@ -598,8 +598,8 @@ jobs:
           $packerArgs += @('-target', $env:BUILD_TARGET)
           $packerArgs += @('-channel', $env:UPD_CHANNEL)
           $packerArgs += @('-keys-loc', "$env:TBUILD\$env:REPO_NAME\Telegram\Resources\update")
-          $packerArgs += @('-local-key', "$env:TBUILD\DesktopPrivate\forkgram-release-2026a.pem")
-          $packerArgs += @('-local-key-id', 'fg-2026a')
+          $packerArgs += @('-local-key', "$env:TBUILD\DesktopPrivate\txcz-release-2026a.pem")
+          $packerArgs += @('-local-key-id', 'txcz-2026a')
 
           & .\Packer.exe @packerArgs
           if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -723,6 +723,18 @@ jobs:
             "deploy/$ASSET_INSTALLER" \
             "deploy/$ASSET_PORTABLE" \
             -R "$R" --clobber
+
+          # Self-update feed for the in-app HttpChecker: the signed update
+          # package plus the version map it polls through
+          # .../releases/latest/download/current6.
+          if [ "$SIGNING" = "full" ]; then
+            printf '{"win64":{"stable":{"released":%s,"link":"/%s{version}"}}}' \
+              "$AppVersion" "$UPD_PREFIX" > deploy/current6
+            gh release upload "$TAG" \
+              "deploy/${UPD_PREFIX}${AppVersion}${UPD_SUFFIX}" \
+              "deploy/current6" \
+              -R "$R" --clobber
+          fi
 
   publish-telegram:
     name: Publish update files to Telegram

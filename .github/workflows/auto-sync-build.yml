@@ -48,7 +48,7 @@ jobs:
           set -euo pipefail
           TAG="${{ inputs.tag }}"
           if [ -z "$TAG" ]; then
-            TAG=$(curl -fsSL "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" | jq -r '.tag_name')
+            TAG=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" | jq -r '.tag_name')
           fi
           if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
             echo "::error::could not determine upstream release tag"
@@ -62,7 +62,15 @@ jobs:
         run: |
           set -euo pipefail
           git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || true
-          git fetch upstream "refs/tags/${{ steps.tag.outputs.tag }}:refs/tags/${{ steps.tag.outputs.tag }}"
+          # --force: this repo carries its own release tags with the same
+          # names (created by win_release when publishing), pointing at the
+          # build branch, while upstream's point at upstream commits. The
+          # local tag is only used for the ancestry check and the merge,
+          # and tags are never pushed back, so forcing it to upstream's
+          # commit is exactly the semantics those steps need. Without it,
+          # every run whose latest tag matches our last release dies here
+          # with "would clobber existing tag".
+          git fetch --force upstream "refs/tags/${{ steps.tag.outputs.tag }}:refs/tags/${{ steps.tag.outputs.tag }}"
 
       - name: Check whether already synced.
         id: check

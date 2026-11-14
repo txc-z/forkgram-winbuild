@@ -430,6 +430,17 @@ jobs:
           # it reads live in the shared prefix, which has no stage of its own.
           [ -f "$LibrariesPath/nv-codec-headers/Makefile" ] \
             || drop nv-codec-headers "nv-codec-headers makefile missing"
+          # Same trap for the Rust stages: tdesktop_rust runs
+          # `cargo add --path ../tlottie` and `../wallet-engine`, so it needs
+          # their sources, but the sweep keeps only tlottie/include - the
+          # folder survives, prepare.py SKIPs the stage, and cargo fails on
+          # the missing Cargo.toml (run 43530705297, v7.4.4). wallet-engine's
+          # folder is normally emptied outright (NotFound rebuilds it), but
+          # check it too so a future preserved file cannot re-create this.
+          [ -f "$LibrariesPath/tlottie/Cargo.toml" ] \
+            || drop tlottie "tlottie sources missing"
+          [ -f "$LibrariesPath/wallet-engine/Cargo.toml" ] \
+            || drop wallet-engine "wallet-engine sources missing"
           if [ -z "$(ls -A "$LibrariesPath/local/lib/pkgconfig" 2>/dev/null)" ]; then
             for lib in dav1d openh264 opus libvpx; do
               drop $lib "pkg-config files missing"

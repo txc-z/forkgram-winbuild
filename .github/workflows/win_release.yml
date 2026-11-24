@@ -167,7 +167,11 @@ jobs:
 
           sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/${_Zi}//' "$PROGRAMFILES"/CMake/share/cmake*/Modules/Platform/Windows-MSVC.cmake
 
-          echo "$(sha256sum $TBUILD/$REPO_NAME/$PREPARE_PATH | awk '{ print $1 }')" >> CACHE_KEY.txt
+          # No prepare.py hash in the cache key on purpose: prepare.py
+          # re-keys every stage itself (its cache_keys files ride inside
+          # these caches), so a one-line patch-pin bump in it must not
+          # invalidate the whole build tree. Only the SDK version and
+          # the build flavour separate these caches.
           echo "$SDK" >> CACHE_KEY.txt
           # Release libraries are built too, so these caches must not collide with win.yml.
           echo "release" >> CACHE_KEY.txt
